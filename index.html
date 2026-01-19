@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuraScan | AI & Tech Intelligence</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Roboto+Mono:wght@300;400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+</head>
+<body>
+    <div class="terminal-line"></div>
+    <div class="matrix-background"></div>
+    
+    <header class="cyber-header">
+        <div class="header-grid">
+            <div class="logo-container">
+                <div class="neon-logo">
+                    <span class="logo-icon">⟁</span>
+                    <h1 class="logo-text">NEURASCAN</h1>
+                </div>
+                <div class="tagline">AI INTELLIGENCE PLATFORM</div>
+            </div>
+            
+            <nav class="cyber-nav">
+                <a href="#" class="nav-link active" data-category="ai"><i class="fas fa-brain"></i> AI</a>
+                <a href="#" class="nav-link" data-category="robotics"><i class="fas fa-robot"></i> Robotics</a>
+                <a href="#" class="nav-link" data-category="tech"><i class="fas fa-microchip"></i> Tech</a>
+                <a href="#" class="nav-link" data-category="cybersecurity"><i class="fas fa-shield-alt"></i> Cyber</a>
+                <a href="#" class="nav-link" data-category="quantum"><i class="fas fa-atom"></i> Quantum</a>
+            </nav>
+            
+            <div class="header-controls">
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="SEARCH DATABASE...">
+                </div>
+                <button class="cyber-btn" id="refreshBtn">
+                    <span class="btn-text">SYNC DATA</span>
+                    <div class="btn-overlay"></div>
+                </button>
+            </div>
+        </div>
+        
+        <div class="status-bar">
+            <div class="status-item">
+                <span class="status-label">CONNECTION:</span>
+                <span class="status-value active">ACTIVE</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">ARTICLES:</span>
+                <span class="status-value" id="articleCount">0</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">LAST UPDATE:</span>
+                <span class="status-value" id="lastUpdate">--:--:--</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-grid">
+        <aside class="sidebar">
+            <div class="cyber-card">
+                <h3 class="card-title"><i class="fas fa-satellite-dish"></i> DATA STREAMS</h3>
+                <div class="category-list">
+                    <div class="category-item active" data-category="all">
+                        <div class="category-icon">⟠</div>
+                        <span>All Feeds</span>
+                        <span class="category-count">0</span>
+                    </div>
+                    <div class="category-item" data-category="ai">
+                        <div class="category-icon">⟁</div>
+                        <span>Neural Networks</span>
+                        <span class="category-count">0</span>
+                    </div>
+                    <div class="category-item" data-category="robotics">
+                        <div class="category-icon">⎌</div>
+                        <span>Automation</span>
+                        <span class="category-count">0</span>
+                    </div>
+                    <div class="category-item" data-category="tech">
+                        <div class="category-icon">⏚</div>
+                        <span>Emerging Tech</span>
+                        <span class="category-count">0</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="cyber-card">
+                <h3 class="card-title"><i class="fas fa-chart-network"></i> TRENDING</h3>
+                <div class="trending-list">
+                    <div class="trending-item">
+                        <span class="trend-rank">01</span>
+                        <span class="trend-text">Generative AI</span>
+                        <div class="trend-bar"></div>
+                    </div>
+                    <div class="trending-item">
+                        <span class="trend-rank">02</span>
+                        <span class="trend-text">Quantum Computing</span>
+                        <div class="trend-bar"></div>
+                    </div>
+                    <div class="trending-item">
+                        <span class="trend-rank">03</span>
+                        <span class="trend-text">Autonomous Systems</span>
+                        <div class="trend-bar"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="cyber-card terminal">
+                <h3 class="card-title"><i class="fas fa-terminal"></i> SYSTEM LOG</h3>
+                <div class="log-output" id="systemLog">
+                    <div>> Initializing NeuraScan v2.1...</div>
+                    <div>> Connecting to GNews API...</div>
+                    <div>> Authentication: SUCCESS</div>
+                    <div>> Ready to stream data</div>
+                </div>
+            </div>
+        </aside>
+
+        <section class="content-area">
+            <div class="content-header">
+                <h2 class="section-title">LATEST INTELLIGENCE</h2>
+                <div class="view-controls">
+                    <button class="view-btn active" data-view="grid"><i class="fas fa-th"></i></button>
+                    <button class="view-btn" data-view="list"><i class="fas fa-list"></i></button>
+                    <button class="view-btn" data-view="compact"><i class="fas fa-grip-lines"></i></button>
+                </div>
+            </div>
+            
+            <div class="articles-grid" id="articlesContainer">
+                <!-- Articles will be loaded here -->
+                <div class="loading-article">
+                    <div class="pulse-loader"></div>
+                    <p>CONNECTING TO NEWS NETWORK...</p>
+                </div>
+            </div>
+            
+            <div class="pagination">
+                <button class="cyber-btn-sm" id="prevPage"><i class="fas fa-chevron-left"></i> PREV</button>
+                <div class="page-indicator">PAGE <span id="currentPage">1</span></div>
+                <button class="cyber-btn-sm" id="nextPage">NEXT <i class="fas fa-chevron-right"></i></button>
+            </div>
+        </section>
+    </main>
+
+    <footer class="cyber-footer">
+        <div class="footer-grid">
+            <div class="footer-section">
+                <div class="footer-logo">⟁ NEURASCAN</div>
+                <p class="footer-text">Advanced Intelligence Aggregation System</p>
+            </div>
+            <div class="footer-section">
+                <h4>DATA SOURCES</h4>
+                <p>GNews API • Research Networks • Tech Journals</p>
+            </div>
+            <div class="footer-section">
+                <h4>SYSTEM STATUS</h4>
+                <div class="status-indicators">
+                    <div class="status-dot online"></div>
+                    <span>ONLINE</span>
+                    <div class="status-dot" id="apiStatus"></div>
+                    <span>API</span>
+                </div>
+            </div>
+        </div>
+        <div class="copyright">
+            <p>© 2024 NEURASCAN SYSTEM | v2.1.4 | <span id="visitorCount">0000</span> ACTIVE CONNECTIONS</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
