@@ -2,7 +2,7 @@
 const CONFIG = {
     GNEWS_API_KEY: 'bea02426fb330008691f353533eb2384', // Replace with your actual API key
     GNEWS_BASE_URL: 'https://gnews.io/api/v4/',
-    DEFAULT_QUERY: '(AI OR Artificial Intelligence OR Machine Learning OR Robotics OR Technology)',
+    DEFAULT_QUERY: 'AI technology robotics machine learning',
     ARTICLES_PER_PAGE: 9,
     DEFAULT_CATEGORY: 'ai'
 };
@@ -14,7 +14,8 @@ let state = {
     currentPage: 1,
     currentCategory: 'all',
     searchQuery: '',
-    isLoading: false
+    isLoading: false,
+    useDemoData: false
 };
 
 // DOM Elements
@@ -38,8 +39,9 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function init() {
-    updateSystemLog('> Initializing NeuraScan System...', 'info');
-    updateSystemLog('> Loading modules...', 'info');
+    updateSystemLog('> Initializing NeuraScan System v2.1.4...', 'info');
+    updateSystemLog('> Loading core modules...', 'info');
+    updateSystemLog('> Checking system integrity...', 'info');
     
     // Set up event listeners
     setupEventListeners();
@@ -47,19 +49,32 @@ async function init() {
     // Initialize visitor count
     initializeVisitorCount();
     
-    // Test API connection
-    const apiConnected = await testAPIConnection();
+    // Set last update time immediately
+    updateLastUpdateTime();
     
-    // Load articles
-    if (apiConnected) {
-        await loadArticles();
-    } else {
-        // If API fails, load demo data
-        updateSystemLog('> API connection failed, loading demo data...', 'warning');
+    // Check network status first
+    if (!navigator.onLine) {
+        updateSystemLog('> WARNING: Network connection offline', 'warning');
+        updateSystemLog('> Using local cache and demo data', 'info');
+        state.useDemoData = true;
         loadDemoData();
+        elements.apiStatus.style.background = '#ffa500';
+    } else {
+        // Test API connection
+        const apiConnected = await testAPIConnection();
+        
+        if (apiConnected) {
+            await loadArticles();
+        } else {
+            updateSystemLog('> API connection unavailable', 'warning');
+            updateSystemLog('> Switching to demo mode...', 'info');
+            state.useDemoData = true;
+            loadDemoData();
+        }
     }
     
-    updateSystemLog('> System ready. Awaiting commands...', 'success');
+    updateSystemLog('> System initialization complete', 'success');
+    updateSystemLog('> Ready for data queries', 'info');
 }
 
 function setupEventListeners() {
@@ -68,8 +83,13 @@ function setupEventListeners() {
     
     // Refresh button
     elements.refreshBtn.addEventListener('click', () => {
-        updateSystemLog('> Manual refresh requested...', 'info');
-        loadArticles();
+        if (state.useDemoData) {
+            updateSystemLog('> Demo mode: Refreshing local data', 'info');
+            loadDemoData();
+        } else {
+            updateSystemLog('> Manual refresh requested...', 'info');
+            loadArticles();
+        }
     });
     
     // Category navigation
@@ -105,51 +125,57 @@ function setupEventListeners() {
             renderArticles();
         }
     });
+    
+    // Network status listener
+    window.addEventListener('online', () => {
+        updateSystemLog('> Network connection restored', 'success');
+        elements.apiStatus.style.background = 'var(--accent)';
+    });
+    
+    window.addEventListener('offline', () => {
+        updateSystemLog('> Network connection lost', 'warning');
+        elements.apiStatus.style.background = '#ffa500';
+    });
 }
 
 async function testAPIConnection() {
+    // First check if API key is properly set
+    if (!CONFIG.GNEWS_API_KEY || CONFIG.GNEWS_API_KEY === 'YOUR_GNEWS_API_KEY_HERE') {
+        updateSystemLog('> API: Not configured', 'warning');
+        updateSystemLog('> Add your GNews API key to script.js', 'info');
+        updateSystemLog('> Using demonstration mode', 'info');
+        elements.apiStatus.style.background = '#ffa500'; // Orange for warning
+        return false;
+    }
+    
+    updateSystemLog('> Testing API connection...', 'info');
+    
     try {
-        updateSystemLog('> Testing API connection...', 'info');
-        
-        // Check if API key is set
-        if (!CONFIG.GNEWS_API_KEY || CONFIG.GNEWS_API_KEY === 'YOUR_GNEWS_API_KEY_HERE') {
-            updateSystemLog('> WARNING: API key not configured', 'warning');
-            updateSystemLog('> Using demo data. Add your GNews API key to script.js', 'info');
-            elements.apiStatus.style.background = '#ffa500'; // Orange for warning
-            return false;
-        }
-        
-        // Test a simple API call
+        // Simple test request
         const testUrl = `${CONFIG.GNEWS_BASE_URL}search?q=test&token=${CONFIG.GNEWS_API_KEY}&lang=en&max=1`;
         
-        const response = await fetch(testUrl, { timeout: 5000 });
+        const response = await fetch(testUrl);
         
         if (response.ok) {
-            const data = await response.json();
-            if (data.errors) {
-                updateSystemLog(`> API Error: ${data.errors[0]?.message || 'Unknown error'}`, 'error');
-                elements.apiStatus.style.background = '#ff4757'; // Red for error
-                return false;
-            }
-            
-            updateSystemLog('> API: CONNECTED', 'success');
-            elements.apiStatus.classList.add('online');
+            updateSystemLog('> API: Connection successful', 'success');
             elements.apiStatus.style.background = 'var(--accent)';
+            elements.apiStatus.classList.add('online');
             return true;
         } else {
-            updateSystemLog(`> API Connection Failed: HTTP ${response.status}`, 'error');
+            updateSystemLog(`> API: Server error (${response.status})`, 'error');
             elements.apiStatus.style.background = '#ff4757';
             return false;
         }
     } catch (error) {
-        console.error('API Test Error:', error);
-        updateSystemLog('> API: CONNECTION FAILED - Network error', 'error');
+        updateSystemLog('> API: Network error', 'error');
+        updateSystemLog('> Using local data storage', 'info');
         elements.apiStatus.style.background = '#ff4757';
         return false;
     }
 }
 
 async function loadArticles() {
+    // Prevent multiple simultaneous loads
     if (state.isLoading) return;
     
     state.isLoading = true;
@@ -158,42 +184,57 @@ async function loadArticles() {
     updateSystemLog('> Fetching latest intelligence...', 'info');
     showLoadingState();
     
-    // Check if API key is properly set
+    // Use demo data if we're in demo mode
+    if (state.useDemoData) {
+        updateSystemLog('> Using demonstration data', 'info');
+        state.isLoading = false;
+        loadDemoData();
+        return;
+    }
+    
+    // Check API key one more time
     if (!CONFIG.GNEWS_API_KEY || CONFIG.GNEWS_API_KEY === 'YOUR_GNEWS_API_KEY_HERE') {
         updateSystemLog('> ERROR: API key not configured', 'error');
-        updateSystemLog('> Please add your GNews API key to script.js', 'info');
-        updateSystemLog('> Using demo data for now...', 'info');
+        updateSystemLog('> Please update CONFIG.GNEWS_API_KEY in script.js', 'info');
+        state.useDemoData = true;
         state.isLoading = false;
         loadDemoData();
         return;
     }
     
     try {
-        // Build the API URL
+        // Build the API URL with proper encoding
         const query = state.searchQuery || CONFIG.DEFAULT_QUERY;
-        const url = `${CONFIG.GNEWS_BASE_URL}search?q=${encodeURIComponent(query)}&token=${CONFIG.GNEWS_API_KEY}&lang=en&max=30`;
+        const encodedQuery = encodeURIComponent(query);
+        const url = `${CONFIG.GNEWS_BASE_URL}search?q=${encodedQuery}&token=${CONFIG.GNEWS_API_KEY}&lang=en&max=20`;
         
-        updateSystemLog(`> Querying: ${query.substring(0, 50)}...`, 'info');
+        console.log('API Request URL (key hidden):', url.replace(CONFIG.GNEWS_API_KEY, 'API_KEY_HIDDEN'));
         
-        // Add timeout to fetch
+        updateSystemLog(`> Querying: "${query}"`, 'info');
+        
+        // Use fetch with timeout
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const timeout = setTimeout(() => controller.abort(), 8000);
         
-        const response = await fetch(url, { 
+        const response = await fetch(url, {
             signal: controller.signal,
+            mode: 'cors',
             headers: {
                 'Accept': 'application/json'
             }
         });
         
-        clearTimeout(timeoutId);
+        clearTimeout(timeout);
         
+        console.log('Response status:', response.status);
+        
+        // Handle different response statuses
         if (response.status === 401) {
-            throw new Error('Invalid API key - Check your GNews API key');
+            throw new Error('Invalid API key. Please check your GNews API key.');
         }
         
         if (response.status === 429) {
-            throw new Error('API rate limit exceeded - Try again later');
+            throw new Error('Rate limit exceeded. Please try again later.');
         }
         
         if (!response.ok) {
@@ -201,57 +242,67 @@ async function loadArticles() {
         }
         
         const data = await response.json();
+        console.log('API Response received:', data);
         
-        if (data.errors) {
-            throw new Error(`API Error: ${JSON.stringify(data.errors)}`);
+        // Check for GNews API errors
+        if (data.errors && Array.isArray(data.errors)) {
+            throw new Error(`GNews API Error: ${data.errors[0]}`);
         }
         
-        if (data.articles && data.articles.length > 0) {
-            // Process and categorize articles
-            state.articles = data.articles.map(article => ({
-                title: article.title || 'Untitled',
-                description: article.description || 'No description available.',
-                content: article.content || '',
-                url: article.url || '#',
-                image: article.image || null,
-                source: {
-                    name: article.source?.name || 'Unknown Source',
-                    url: article.source?.url || '#'
-                },
-                id: generateId(),
-                category: categorizeArticle(article),
-                publishedAt: formatDate(article.publishedAt)
-            }));
-            
-            updateSystemLog(`> Retrieved ${state.articles.length} intelligence reports`, 'success');
-            updateArticleCount();
-            filterArticles();
-            renderArticles();
-            updateLastUpdateTime();
-            updateCategoryCounts();
-            
-        } else {
-            updateSystemLog('> No articles found for current query', 'info');
-            loadDemoData(); // Fallback to demo data
+        if (!data.articles || data.articles.length === 0) {
+            updateSystemLog('> No articles found. Using demo data.', 'info');
+            state.useDemoData = true;
+            loadDemoData();
+            return;
         }
+        
+        // Process articles
+        state.articles = data.articles.map(article => ({
+            title: article.title || 'Untitled Article',
+            description: article.description || 'No description available.',
+            content: article.content || '',
+            url: article.url || '#',
+            image: article.image || null,
+            source: {
+                name: article.source?.name || 'Unknown Source',
+                url: article.source?.url || '#'
+            },
+            id: generateId(),
+            category: categorizeArticle(article),
+            publishedAt: formatDate(article.publishedAt),
+            isDemo: false
+        }));
+        
+        updateSystemLog(`> Retrieved ${state.articles.length} intelligence reports`, 'success');
+        updateArticleCount();
+        filterArticles();
+        renderArticles();
+        updateLastUpdateTime();
+        updateCategoryCounts();
         
     } catch (error) {
-        console.error('Error loading articles:', error);
+        console.error('API Error details:', error);
+        
+        // User-friendly error messages
+        let errorMessage = 'Failed to retrieve data';
         
         if (error.name === 'AbortError') {
-            updateSystemLog('> ERROR: Request timeout - Network issue', 'error');
+            errorMessage = 'Request timeout. Please check your connection.';
         } else if (error.message.includes('API key')) {
-            updateSystemLog('> ERROR: Invalid or missing API key', 'error');
-            updateSystemLog('> Get a free key from: https://gnews.io/', 'info');
-        } else if (error.message.includes('rate limit')) {
-            updateSystemLog('> ERROR: API rate limit reached', 'error');
-            updateSystemLog('> Using demo data temporarily...', 'info');
-        } else {
-            updateSystemLog(`> ERROR: ${error.message}`, 'error');
+            errorMessage = 'Invalid API key configuration.';
+        } else if (error.message.includes('Rate limit')) {
+            errorMessage = 'API rate limit exceeded.';
+        } else if (error.message.includes('Failed to fetch')) {
+            errorMessage = 'Network error. Please check your internet connection.';
         }
         
-        // Fallback to demo data
+        updateSystemLog(`> ERROR: ${errorMessage}`, 'error');
+        updateSystemLog('> Switching to demonstration mode', 'info');
+        
+        // Fall back to demo data
+        state.useDemoData = true;
         loadDemoData();
+        
     } finally {
         state.isLoading = false;
     }
@@ -262,36 +313,36 @@ function categorizeArticle(article) {
     const content = (article.content || '').toLowerCase();
     const description = (article.description || '').toLowerCase();
     
-    const text = title + ' ' + description + ' ' + content;
+    const fullText = title + ' ' + description + ' ' + content;
     
     // Define keywords for each category
-    const categories = {
-        'ai': ['ai', 'artificial intelligence', 'machine learning', 'deep learning', 'neural network', 'chatgpt', 'gpt', 'llm', 'openai'],
-        'robotics': ['robot', 'robotics', 'automation', 'drone', 'autonomous', 'boston dynamics', 'humanoid'],
-        'cybersecurity': ['cyber', 'security', 'hack', 'hacker', 'encryption', 'malware', 'ransomware', 'data breach'],
-        'quantum': ['quantum', 'qubit', 'quantum computing', 'quantum physics', 'superposition'],
-        'tech': ['technology', 'tech', 'innovation', 'startup', 'silicon valley', 'tech news']
+    const keywordMap = {
+        'ai': ['ai', 'artificial intelligence', 'machine learning', 'deep learning', 'neural network', 'chatgpt', 'gpt', 'llm', 'openai', 'transformers'],
+        'robotics': ['robot', 'robotics', 'automation', 'drone', 'autonomous', 'boston dynamics', 'humanoid', 'industrial robot', 'robotic arm'],
+        'cybersecurity': ['cyber', 'security', 'hack', 'hacker', 'encryption', 'malware', 'ransomware', 'data breach', 'firewall', 'vulnerability'],
+        'quantum': ['quantum', 'qubit', 'quantum computing', 'quantum physics', 'superposition', 'entanglement'],
+        'tech': ['technology', 'tech', 'innovation', 'startup', 'silicon valley', 'tech news', 'digital', 'software', 'hardware']
     };
     
-    // Count matches for each category
-    let maxMatches = 0;
-    let selectedCategory = 'tech'; // Default
+    // Score each category
+    let bestScore = 0;
+    let bestCategory = 'tech'; // Default
     
-    for (const [category, keywords] of Object.entries(categories)) {
-        let matches = 0;
-        for (const keyword of keywords) {
-            if (text.includes(keyword)) {
-                matches++;
+    for (const [category, keywords] of Object.entries(keywordMap)) {
+        let score = 0;
+        keywords.forEach(keyword => {
+            if (fullText.includes(keyword)) {
+                score += 1;
             }
-        }
+        });
         
-        if (matches > maxMatches) {
-            maxMatches = matches;
-            selectedCategory = category;
+        if (score > bestScore) {
+            bestScore = score;
+            bestCategory = category;
         }
     }
     
-    return selectedCategory;
+    return bestCategory;
 }
 
 function formatDate(dateString) {
@@ -300,9 +351,13 @@ function formatDate(dateString) {
     try {
         const date = new Date(dateString);
         const now = new Date();
-        const diffHours = Math.floor((now - date) / (1000 * 60 * 60));
+        const diffMs = now - date;
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
         
-        if (diffHours < 24) {
+        if (diffHours < 1) {
+            const diffMins = Math.floor(diffMs / (1000 * 60));
+            return `${diffMins}m ago`;
+        } else if (diffHours < 24) {
             return `${diffHours}h ago`;
         } else if (diffHours < 168) { // Less than 7 days
             const days = Math.floor(diffHours / 24);
@@ -313,116 +368,161 @@ function formatDate(dateString) {
                 day: 'numeric'
             });
         }
-    } catch {
+    } catch (error) {
         return 'Recent';
     }
 }
 
-// Demo data function for fallback
 function loadDemoData() {
-    updateSystemLog('> Loading demonstration data...', 'info');
+    updateSystemLog('> Loading demonstration intelligence...', 'info');
     
     const demoArticles = [
         {
-            title: "OpenAI Unveils GPT-5: Next Generation AI Model",
-            description: "OpenAI announces GPT-5 with significant improvements in reasoning and multimodal capabilities, pushing the boundaries of artificial intelligence.",
-            content: "The new model demonstrates unprecedented performance in complex reasoning tasks and shows improved safety features.",
-            source: { name: "TechCrunch", url: "https://techcrunch.com" },
-            url: "https://techcrunch.com",
-            image: "https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&w=800",
+            title: "OpenAI Unveils GPT-5 with Revolutionary Multimodal Capabilities",
+            description: "The latest iteration of OpenAI's language model demonstrates unprecedented reasoning abilities and seamless integration across text, image, and audio modalities.",
+            content: "GPT-5 showcases significant improvements in logical reasoning, mathematical problem-solving, and creative tasks. Early benchmarks indicate a 40% performance improvement over previous models.",
+            source: { name: "AI Research Journal", url: "#" },
+            url: "#",
+            image: null,
             publishedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-            category: "ai"
+            category: "ai",
+            isDemo: true
         },
         {
-            title: "Boston Dynamics Announces New Atlas Robot with AI Integration",
-            description: "The latest humanoid robot features advanced AI for autonomous decision-making and complex task execution in industrial environments.",
-            content: "Atlas now features enhanced mobility and can perform complex manipulation tasks in unstructured environments.",
-            source: { name: "Wired", url: "https://wired.com" },
-            url: "https://wired.com",
-            image: "https://images.unsplash.com/photo-1678931561580-7dcc8f7e5b3a?auto=format&fit=crop&w=800",
+            title: "Boston Dynamics Atlas Robots Achieve Full Autonomy in Warehouse Operations",
+            description: "Latest software update enables humanoid robots to operate independently in complex warehouse environments, marking a major milestone in industrial automation.",
+            content: "The autonomous system allows robots to navigate, identify objects, and perform tasks without human intervention, reducing operational costs by 60%.",
+            source: { name: "Robotics Weekly", url: "#" },
+            url: "#",
+            image: null,
             publishedAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-            category: "robotics"
+            category: "robotics",
+            isDemo: true
         },
         {
-            title: "Quantum Computing Breakthrough Achieves 1000 Qubits",
-            description: "Researchers achieve a major milestone in quantum computing, bringing practical quantum applications closer to reality.",
-            content: "The breakthrough reduces error rates significantly, making quantum computing more viable for real-world applications.",
-            source: { name: "Nature", url: "https://nature.com" },
-            url: "https://nature.com",
-            image: "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=800",
-            publishedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-            category: "quantum"
-        },
-        {
-            title: "Neuralink's First Human Trial Shows Promising Results",
-            description: "Initial results from Neuralink's brain-computer interface trial demonstrate successful neural signal transmission and decoding.",
-            content: "Patients with paralysis were able to control digital devices using only their thoughts.",
-            source: { name: "The Verge", url: "https://theverge.com" },
-            url: "https://theverge.com",
-            image: "https://images.unsplash.com/photo-1555255707-c07966088b7b?auto=format&fit=crop&w=800",
+            title: "Quantum Computer Reaches 1000-Qubit Milestone, Breaking Error Rate Records",
+            description: "Researchers achieve stable quantum computing with unprecedented qubit count while maintaining error rates below 0.1%, paving way for practical applications.",
+            content: "The breakthrough was achieved using novel error-correction techniques and cryogenic cooling systems, bringing fault-tolerant quantum computing closer to reality.",
+            source: { name: "Quantum Computing Today", url: "#" },
+            url: "#",
+            image: null,
             publishedAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-            category: "ai"
+            category: "quantum",
+            isDemo: true
         },
         {
-            title: "Autonomous Delivery Robots Approved for Citywide Deployment",
-            description: "Major city approves expansion of autonomous delivery robots, revolutionizing last-mile logistics and reducing traffic congestion.",
-            content: "The robots can navigate sidewalks and crosswalks safely, delivering packages within 30 minutes.",
-            source: { name: "Forbes", url: "https://forbes.com" },
-            url: "https://forbes.com",
-            image: "https://images.unsplash.com/photo-1544319733-053e92c8d5a0?auto=format&fit=crop&w=800",
+            title: "Neuralink's Brain-Computer Interface Enables Paralyzed Patients to Control Digital Devices",
+            description: "Clinical trial results show successful neural signal decoding, allowing patients with spinal cord injuries to operate computers and prosthetics through thought alone.",
+            content: "The implantable device achieves 95% accuracy in command recognition and shows no significant adverse effects after 12 months of testing.",
+            source: { name: "NeuroTech Insights", url: "#" },
+            url: "#",
+            image: null,
             publishedAt: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
-            category: "robotics"
+            category: "ai",
+            isDemo: true
         },
         {
-            title: "New AI Algorithm Can Predict Protein Folding in Minutes",
-            description: "Breakthrough in computational biology allows AI to predict protein structures with unprecedented speed and accuracy.",
-            content: "This advancement could accelerate drug discovery and understanding of genetic diseases.",
-            source: { name: "Science Journal", url: "https://science.org" },
-            url: "https://science.org",
-            image: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=800",
-            publishedAt: new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString(),
-            category: "ai"
-        },
-        {
-            title: "Cybersecurity Firm Discovers Critical Zero-Day Vulnerability",
-            description: "Major security flaw discovered in widely used enterprise software, affecting millions of systems worldwide.",
-            content: "The vulnerability allows remote code execution and requires immediate patching.",
-            source: { name: "Security Weekly", url: "https://securityweekly.com" },
-            url: "https://securityweekly.com",
-            image: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=800",
+            title: "Autonomous Delivery Networks Expand to 50 Cities Worldwide",
+            description: "Self-driving delivery vehicles and drones now service millions of customers, reducing delivery times and environmental impact.",
+            content: "The network handles over 500,000 deliveries daily with 99.8% on-time performance and zero traffic incidents reported.",
+            source: { name: "Autonomous Systems Review", url: "#" },
+            url: "#",
+            image: null,
             publishedAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-            category: "cybersecurity"
+            category: "robotics",
+            isDemo: true
         },
         {
-            title: "Tesla Unveils Next-Generation Humanoid Robot Prototype",
-            description: "Tesla's Optimus robot demonstrates new capabilities including object manipulation and environmental navigation.",
-            content: "The robot can now perform complex manufacturing tasks with human-like dexterity.",
-            source: { name: "Tesla Blog", url: "https://tesla.com" },
-            url: "https://tesla.com",
-            image: "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?auto=format&fit=crop&w=800",
+            title: "New AI Algorithm Predicts Protein Structures with 99% Accuracy",
+            description: "Breakthrough in computational biology revolutionizes drug discovery and disease understanding by accurately predicting protein folding in seconds.",
+            content: "The algorithm, named ProteoFold, reduces prediction time from months to seconds while maintaining unprecedented accuracy levels.",
+            source: { name: "BioTech Innovations", url: "#" },
+            url: "#",
+            image: null,
             publishedAt: new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString(),
-            category: "robotics"
+            category: "ai",
+            isDemo: true
         },
         {
-            title: "Major Tech Companies Form AI Ethics Consortium",
-            description: "Leading tech companies establish consortium to develop ethical guidelines for AI development and deployment.",
-            content: "The consortium aims to address bias, transparency, and accountability in AI systems.",
-            source: { name: "Tech Ethics Review", url: "https://techethics.org" },
-            url: "https://techethics.org",
-            image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800",
-            publishedAt: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
-            category: "ai"
+            title: "Major Cybersecurity Firm Thwarts Global Ransomware Attack",
+            description: "Real-time threat detection system prevents widespread encryption attack targeting critical infrastructure across three continents.",
+            content: "The AI-powered defense system identified and neutralized the attack vector within 47 seconds of detection, protecting over 10,000 organizations.",
+            source: { name: "CyberDefense Quarterly", url: "#" },
+            url: "#",
+            image: null,
+            publishedAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+            category: "cybersecurity",
+            isDemo: true
+        },
+        {
+            title: "Tesla Optimus Robots Begin Manufacturing Trial in Gigafactory",
+            description: "Humanoid robots successfully assemble electric vehicle components in pilot program, demonstrating industrial applicability.",
+            content: "The trial shows robots performing complex assembly tasks with 99.5% accuracy and 300% faster than human workers for specific operations.",
+            source: { name: "Manufacturing Tech", url: "#" },
+            url: "#",
+            image: null,
+            publishedAt: new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString(),
+            category: "robotics",
+            isDemo: true
+        },
+        {
+            title: "Global Consortium Establishes Ethical AI Development Standards",
+            description: "Industry leaders agree on comprehensive framework for responsible AI development, addressing bias, transparency, and accountability.",
+            content: "The standards mandate independent auditing, explainable AI systems, and ethical review boards for all AI development projects.",
+            source: { name: "AI Ethics Council", url: "#" },
+            url: "#",
+            image: null,
+            publishedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+            category: "ai",
+            isDemo: true
+        },
+        {
+            title: "Quantum Internet Prototype Demonstrates Secure Communication over 100km",
+            description: "Breakthrough in quantum networking enables theoretically unbreakable encryption for long-distance communications.",
+            content: "The prototype uses entangled photon pairs to establish secure quantum keys, demonstrating practical quantum key distribution.",
+            source: { name: "Quantum Networks", url: "#" },
+            url: "#",
+            image: null,
+            publishedAt: new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString(),
+            category: "quantum",
+            isDemo: true
+        },
+        {
+            title: "AI-Powered Medical Diagnosis System Approved for Clinical Use",
+            description: "FDA approves first comprehensive AI diagnostic tool that analyzes medical images, lab results, and patient history with 98% accuracy.",
+            content: "The system reduces diagnostic time from days to minutes and has shown particular effectiveness in early cancer detection.",
+            source: { name: "Medical AI Today", url: "#" },
+            url: "#",
+            image: null,
+            publishedAt: new Date(Date.now() - 15 * 60 * 60 * 1000).toISOString(),
+            category: "ai",
+            isDemo: true
+        },
+        {
+            title: "Swarm Robotics Enables Autonomous Ocean Cleanup Operations",
+            description: "Fleets of AI-controlled robots successfully remove plastic waste from ocean surfaces, demonstrating scalable environmental solutions.",
+            content: "The swarm system coordinates hundreds of robots to efficiently cover large areas while avoiding marine life.",
+            source: { name: "Environmental Robotics", url: "#" },
+            url: "#",
+            image: null,
+            publishedAt: new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString(),
+            category: "robotics",
+            isDemo: true
         }
     ];
     
+    // Process demo articles
     state.articles = demoArticles.map(article => ({
         ...article,
         id: generateId(),
-        category: article.category,
+        category: article.category || 'tech',
         publishedAt: formatDate(article.publishedAt)
     }));
     
-    updateSystemLog(`> Loaded ${state.articles.length} demo articles`, 'success');
+    updateSystemLog(`> Loaded ${state.articles.length} demonstration articles`, 'success');
+    updateSystemLog('> To use real data, add your GNews API key', 'info');
+    updateSystemLog('> Get a free key at: https://gnews.io/', 'info');
+    
     updateArticleCount();
     filterArticles();
     renderArticles();
@@ -448,6 +548,9 @@ function filterArticles() {
             article.content.toLowerCase().includes(query)
         );
     }
+    
+    // Update article count display
+    updateArticleCount();
 }
 
 function renderArticles() {
@@ -459,10 +562,13 @@ function renderArticles() {
     
     if (articlesToShow.length === 0) {
         elements.articlesContainer.innerHTML = `
-            <div class="loading-article">
-                <div class="pulse-loader"></div>
-                <p>NO INTELLIGENCE FOUND FOR CURRENT FILTERS</p>
-                <button class="cyber-btn-sm" style="margin-top: 1rem;" onclick="loadArticles()">RETRY CONNECTION</button>
+            <div class="loading-article" style="grid-column: 1 / -1;">
+                <div style="font-size: 3rem; margin-bottom: 1rem;">🔍</div>
+                <p style="color: var(--primary); font-family: var(--font-tech);">NO RESULTS FOUND</p>
+                <p style="color: var(--accent); margin-top: 0.5rem;">Try a different search term or category</p>
+                <button class="cyber-btn-sm" style="margin-top: 1rem;" onclick="handleCategoryChange('all')">
+                    VIEW ALL ARTICLES
+                </button>
             </div>
         `;
         return;
@@ -488,11 +594,15 @@ function createArticleCard(article) {
     };
     
     const color = categoryColors[article.category] || '#0ff0fc';
+    const isDemo = article.isDemo || false;
     
     const card = document.createElement('div');
     card.className = 'article-card';
     card.innerHTML = `
-        <div class="article-category" style="background: rgba(${parseInt(color.slice(1, 3), 16)}, ${parseInt(color.slice(3, 5), 16)}, ${parseInt(color.slice(5, 7), 16)}, 0.2); color: ${color};">${article.category.toUpperCase()}</div>
+        <div class="article-category" style="background: rgba(${parseInt(color.slice(1, 3), 16)}, ${parseInt(color.slice(3, 5), 16)}, ${parseInt(color.slice(5, 7), 16)}, 0.2); color: ${color};">
+            ${article.category.toUpperCase()}
+            ${isDemo ? ' (DEMO)' : ''}
+        </div>
         <div class="article-content">
             <div class="article-source">
                 <div class="source-icon" style="background: ${color};"></div>
@@ -502,7 +612,9 @@ function createArticleCard(article) {
             <p class="article-description">${article.description}</p>
             <div class="article-meta">
                 <span class="article-date">${article.publishedAt}</span>
-                <a href="${article.url}" target="_blank" class="read-more" style="color: ${color};">ACCESS →</a>
+                <a href="${article.url}" target="_blank" class="read-more" style="color: ${color};">
+                    ${isDemo ? 'DEMO' : 'ACCESS'} →
+                </a>
             </div>
         </div>
     `;
@@ -512,9 +624,23 @@ function createArticleCard(article) {
 
 function updateSystemLog(message, type = 'info') {
     const logEntry = document.createElement('div');
-    logEntry.textContent = `> ${message}`;
     
-    switch (type) {
+    // Add timestamp
+    const now = new Date();
+    const timestamp = now.toLocaleTimeString('en-US', { 
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+    
+    logEntry.textContent = `[${timestamp}] ${message}`;
+    logEntry.style.fontFamily = 'var(--font-mono)';
+    logEntry.style.fontSize = '0.8rem';
+    logEntry.style.marginBottom = '0.3rem';
+    
+    // Color coding
+    switch(type) {
         case 'error':
             logEntry.style.color = '#ff4757';
             break;
@@ -528,22 +654,30 @@ function updateSystemLog(message, type = 'info') {
             logEntry.style.color = 'var(--primary)';
             break;
         default:
-            logEntry.style.color = 'var(--accent)';
+            logEntry.style.color = '#a0a0c0';
     }
     
     elements.systemLog.appendChild(logEntry);
     
-    // Keep only last 10 log entries
+    // Keep only last 15 log entries
     const entries = elements.systemLog.children;
-    if (entries.length > 10) {
+    if (entries.length > 15) {
         elements.systemLog.removeChild(entries[0]);
     }
     
+    // Auto-scroll to bottom
     elements.systemLog.scrollTop = elements.systemLog.scrollHeight;
 }
 
 function updateArticleCount() {
-    elements.articleCount.textContent = state.articles.length;
+    const totalArticles = state.articles.length;
+    const filteredCount = state.filteredArticles.length;
+    
+    if (filteredCount === totalArticles) {
+        elements.articleCount.textContent = totalArticles;
+    } else {
+        elements.articleCount.textContent = `${filteredCount}/${totalArticles}`;
+    }
 }
 
 function updateLastUpdateTime() {
@@ -554,7 +688,12 @@ function updateLastUpdateTime() {
         minute: '2-digit',
         second: '2-digit'
     });
-    elements.lastUpdate.textContent = timeString;
+    const dateString = now.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
+    });
+    
+    elements.lastUpdate.textContent = `${dateString} ${timeString}`;
 }
 
 function updateCategoryCounts() {
@@ -571,6 +710,23 @@ function updateCategoryCounts() {
         const category = element.closest('.category-item').dataset.category;
         element.textContent = counts[category] || 0;
     });
+    
+    // Update trending items
+    document.querySelectorAll('.trending-item').forEach((item, index) => {
+        const trendText = item.querySelector('.trend-text');
+        const trendBar = item.querySelector('.trend-bar');
+        
+        if (index === 0) {
+            trendText.textContent = `AI (${counts.ai})`;
+            trendBar.style.width = `${Math.min(100, counts.ai * 20)}px`;
+        } else if (index === 1) {
+            trendText.textContent = `Robotics (${counts.robotics})`;
+            trendBar.style.width = `${Math.min(100, counts.robotics * 20)}px`;
+        } else if (index === 2) {
+            trendText.textContent = `Tech (${counts.tech})`;
+            trendBar.style.width = `${Math.min(100, counts.tech * 20)}px`;
+        }
+    });
 }
 
 function updatePaginationButtons() {
@@ -580,16 +736,24 @@ function updatePaginationButtons() {
     elements.nextPage.disabled = state.currentPage === totalPages || totalPages === 0;
     
     elements.prevPage.style.opacity = elements.prevPage.disabled ? '0.5' : '1';
+    elements.prevPage.style.cursor = elements.prevPage.disabled ? 'not-allowed' : 'pointer';
+    
     elements.nextPage.style.opacity = elements.nextPage.disabled ? '0.5' : '1';
+    elements.nextPage.style.cursor = elements.nextPage.disabled ? 'not-allowed' : 'pointer';
+    
+    elements.prevPage.title = elements.prevPage.disabled ? 'No previous page' : 'Previous page';
+    elements.nextPage.title = elements.nextPage.disabled ? 'No next page' : 'Next page';
 }
 
 function handleSearch() {
     state.searchQuery = elements.searchInput.value.trim();
+    
     if (state.searchQuery) {
-        updateSystemLog(`> Searching for: "${state.searchQuery}"`, 'info');
+        updateSystemLog(`> Search query: "${state.searchQuery}"`, 'info');
     } else {
-        updateSystemLog('> Clearing search filter', 'info');
+        updateSystemLog('> Search cleared', 'info');
     }
+    
     filterArticles();
     state.currentPage = 1;
     renderArticles();
@@ -606,54 +770,65 @@ function handleCategoryChange(category) {
     
     // Update state and render
     state.currentCategory = category;
-    updateSystemLog(`> Filtering: ${category.toUpperCase()} intelligence`, 'info');
+    updateSystemLog(`> Category: ${category.toUpperCase()}`, 'info');
     filterArticles();
     state.currentPage = 1;
     renderArticles();
 }
 
 function handleViewChange(view) {
-    updateSystemLog(`> Changing view to: ${view.toUpperCase()} MODE`, 'info');
-    
     const container = elements.articlesContainer;
-    container.className = 'articles-grid';
     
     switch(view) {
         case 'list':
             container.style.gridTemplateColumns = '1fr';
+            updateSystemLog('> View: List mode', 'info');
             break;
         case 'compact':
-            container.style.gridTemplateColumns = 'repeat(auto-fill, minmax(300px, 1fr))';
+            container.style.gridTemplateColumns = 'repeat(auto-fill, minmax(280px, 1fr))';
+            updateSystemLog('> View: Compact mode', 'info');
             break;
         case 'grid':
         default:
             container.style.gridTemplateColumns = 'repeat(auto-fill, minmax(350px, 1fr))';
+            updateSystemLog('> View: Grid mode', 'info');
             break;
     }
+    
+    // Re-render articles with new layout
+    renderArticles();
 }
 
 function showLoadingState() {
     elements.articlesContainer.innerHTML = `
-        <div class="loading-article">
+        <div class="loading-article" style="grid-column: 1 / -1;">
             <div class="pulse-loader"></div>
-            <p>CONNECTING TO NEWS NETWORK...</p>
+            <p>CONNECTING TO INTELLIGENCE NETWORK...</p>
+            <div style="margin-top: 1rem; font-size: 0.8rem; color: var(--accent);">
+                ${state.useDemoData ? 'Using demonstration data' : 'Fetching live data...'}
+            </div>
         </div>
     `;
 }
 
 function initializeVisitorCount() {
-    // Generate a random visitor count for demo purposes
-    const baseCount = 1428;
-    const randomIncrement = Math.floor(Math.random() * 100);
-    elements.visitorCount.textContent = (baseCount + randomIncrement).toString().padStart(4, '0');
+    // Start with a random base count
+    let count = 1428 + Math.floor(Math.random() * 200);
     
-    // Simulate occasional updates
+    // Update display
+    const updateDisplay = () => {
+        elements.visitorCount.textContent = count.toString().padStart(4, '0');
+    };
+    
+    updateDisplay();
+    
+    // Simulate visitor fluctuations
     setInterval(() => {
-        const change = Math.floor(Math.random() * 3) - 1; // -1, 0, or 1
-        const current = parseInt(elements.visitorCount.textContent);
-        const newCount = Math.max(1400, current + change);
-        elements.visitorCount.textContent = newCount.toString().padStart(4, '0');
-    }, 10000);
+        // Small random change (-2 to +2)
+        const change = Math.floor(Math.random() * 5) - 2;
+        count = Math.max(1400, count + change);
+        updateDisplay();
+    }, 10000); // Update every 10 seconds
 }
 
 // Utility functions
@@ -670,68 +845,36 @@ function debounce(func, wait) {
 }
 
 function generateId() {
-    return Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+    return 'art_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now().toString(36);
 }
 
-// Add fetch timeout polyfill
-if (!fetch.timeout) {
-    fetch.timeout = function(url, options, timeout = 10000) {
-        return new Promise((resolve, reject) => {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => {
-                controller.abort();
-                reject(new Error('Request timeout'));
-            }, timeout);
-            
-            fetch(url, { ...options, signal: controller.signal })
-                .then(resolve)
-                .catch(reject)
-                .finally(() => clearTimeout(timeoutId));
-        });
-    };
-}
-
-// Debug function
-function debugAPI() {
-    console.log('=== NEURASCAN DEBUG INFO ===');
-    console.log('API Key configured:', CONFIG.GNEWS_API_KEY && CONFIG.GNEWS_API_KEY !== 'YOUR_GNEWS_API_KEY_HERE');
-    console.log('API Key (first 5 chars):', CONFIG.GNEWS_API_KEY ? CONFIG.GNEWS_API_KEY.substring(0, 5) + '...' : 'Not set');
-    console.log('Total articles:', state.articles.length);
-    console.log('Filtered articles:', state.filteredArticles.length);
-    console.log('Current category:', state.currentCategory);
-    console.log('Search query:', state.searchQuery);
-    console.log('Current page:', state.currentPage);
-    console.log('Is loading:', state.isLoading);
-    console.log('===========================');
-    
-    updateSystemLog('> Debug info printed to console', 'info');
-}
-
-// Auto-refresh every 5 minutes
+// Auto-refresh every 10 minutes (only if not in demo mode)
 setInterval(() => {
-    if (!state.isLoading && document.visibilityState === 'visible') {
-        updateSystemLog('> Auto-refreshing intelligence...', 'info');
+    if (!state.isLoading && document.visibilityState === 'visible' && !state.useDemoData) {
+        updateSystemLog('> Auto-refresh triggered', 'info');
         loadArticles();
     }
-}, 300000); // 5 minutes
+}, 600000); // 10 minutes
 
-// Update time every second
-setInterval(updateLastUpdateTime, 1000);
+// Update time every 30 seconds
+setInterval(updateLastUpdateTime, 30000);
 
-// Add keyboard shortcuts
+// Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
     // Ctrl/Cmd + R to refresh
     if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
         e.preventDefault();
-        updateSystemLog('> Keyboard refresh triggered', 'info');
-        loadArticles();
+        if (state.useDemoData) {
+            loadDemoData();
+        } else {
+            loadArticles();
+        }
     }
     
     // / to focus search
-    if (e.key === '/' && !e.ctrlKey && !e.metaKey) {
+    if (e.key === '/' && document.activeElement !== elements.searchInput) {
         e.preventDefault();
         elements.searchInput.focus();
-        updateSystemLog('> Search focus activated', 'info');
     }
     
     // Escape to clear search
@@ -741,15 +884,37 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// Add visibility change handler
-document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-        // Refresh when tab becomes visible after 30 seconds
-        setTimeout(() => {
-            if (!state.isLoading) {
-                updateSystemLog('> Tab activated, refreshing data...', 'info');
-                loadArticles();
-            }
-        }, 30000);
+// Debug function for console
+window.debugNeuraScan = function() {
+    console.log('=== NEURASCAN DEBUG INFO ===');
+    console.log('State:', state);
+    console.log('Config:', { ...CONFIG, GNEWS_API_KEY: CONFIG.GNEWS_API_KEY ? '***' + CONFIG.GNEWS_API_KEY.slice(-4) : 'Not set' });
+    console.log('Online:', navigator.onLine);
+    console.log('Demo mode:', state.useDemoData);
+    console.log('Articles:', state.articles.length);
+    console.log('Filtered:', state.filteredArticles.length);
+    console.log('Current page:', state.currentPage);
+    console.log('Category:', state.currentCategory);
+    console.log('Search:', state.searchQuery);
+    console.log('===========================');
+    
+    updateSystemLog('Debug info printed to console', 'info');
+    return state;
+};
+
+// Initialize the API status indicator
+elements.apiStatus.style.width = '10px';
+elements.apiStatus.style.height = '10px';
+elements.apiStatus.style.borderRadius = '50%';
+elements.apiStatus.style.display = 'inline-block';
+elements.apiStatus.style.margin = '0 5px';
+elements.apiStatus.style.background = '#ff4757'; // Start with red (offline)
+
+// Add offline/online detection
+window.addEventListener('load', () => {
+    if (navigator.onLine) {
+        elements.apiStatus.style.background = 'var(--accent)';
+    } else {
+        elements.apiStatus.style.background = '#ff4757';
     }
 });
